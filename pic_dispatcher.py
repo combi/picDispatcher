@@ -487,6 +487,7 @@ class PictureFrame(QtGui.QLabel):
         self.repaint()  # repaint() will trigger the paintEvent(self, event), this way the new pixmap will be drawn on the label
 
 
+
 class Tree(QtGui.QTreeWidget):
     """docstring for Tree"""
     def __init__(self, data=None, mode='src', root=None):
@@ -496,54 +497,8 @@ class Tree(QtGui.QTreeWidget):
         self.data = data
         self.root = root
 
-        self.rootItem = QtGui.QTreeWidgetItem(None, [self.root, ''])
-        self.insertTopLevelItems(0, [self.rootItem])
 
-        self.addItems([f.replace(root, '') for f in self.data])
-        self.setUniformRowHeights(True)
-        self.setSortingEnabled(True)
-
-        self.setHeaderLabels(['file', 'tests'])
-        self.setColumnWidth(0, 400)
-
-    def addItems(self, toParse):
-        # Note(combi): Pour de gros volumes, il faudrait surement proceder en 2 passes:
-        # - Grouper les images par repertoire via groupBy
-        # - Ajouter les repertoires trouves
-        # - Ajouter les images d'un repertoire pour minimiser les lookup du widgetItem sous lequel inserer les images
-
-        hierarchies = set()
-        for f in toParse:
-            dirs = tuple(f.split('/'))
-            hierarchies.add(dirs)
-
-        for hierarchy in hierarchies:
-            parentItem = self.rootItem
-            for folder in hierarchy:
-                entryExists = False
-                children = [parentItem.child(i) for i in range(parentItem.childCount())]
-                for child in children:
-                    if folder == child.text(0):
-                        parentItem = child
-                        entryExists = True
-                        break
-
-                if not entryExists:
-                    created = QtGui.QTreeWidgetItem(parentItem, [folder, ''])
-                    parentItem = created
-
-
-class TreeNew(QtGui.QTreeWidget):
-    """docstring for Tree"""
-    def __init__(self, data=None, mode='src', root=None):
-        super(TreeNew, self).__init__()
-        if data is None:
-            return
-        self.data = data
-        self.root = root
-
-
-        self.rootItem = QtGui.QTreeWidgetItem(None, [self.root])
+        self.rootItem = QtGui.QTreeWidgetItem(self, [self.root])
         self.rootItem.path = None
 
         self.insertTopLevelItems(0, [self.rootItem])
@@ -636,7 +591,7 @@ class MainUI(QtGui.QWidget):
         self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.leftSplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
-        self.tree_src = TreeNew(data=self.data, mode='src', root=self.srcDir)
+        self.tree_src = Tree(data=self.data, mode='src', root=self.srcDir)
         self.picFrame = PictureFrame()
         self.leftSplitter.addWidget(self.tree_src)
         self.leftSplitter.addWidget(self.picFrame)
