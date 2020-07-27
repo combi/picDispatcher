@@ -349,19 +349,13 @@ def ZZZ2(srcDirPath, dstDirPath=None, dirNamesToSkip=[]):
     return imagesToMove
 
 
-def ZZZ3(srcDirPath, dstDirPath=None, dirNamesToSkip=[]):
+def buildFilesDatasFromFolder(folder, dirNamesToSkip=[]):
 
-    srcDirPath = os.path.normpath(srcDirPath)
-    if not dstDirPath:
-        dstDirPath = srcDirPath
-    else:
-        dstDirPath = os.path.normpath(dstDirPath)
+    folder = os.path.normpath(folder)
+    filesToCheck, parsedDirs = get_dir_content(folder, dirNamesToSkip=dirNamesToSkip)
+    filesAndMetadatas  = getFilesMetadatas(filesToCheck)
 
-    filesToCheck, parsedDirs = get_dir_content(srcDirPath, dirNamesToSkip=dirNamesToSkip)
-    filesMetadatas  = getFilesMetadatas(filesToCheck)
-
-
-    return filesMetadatas
+    return filesAndMetadatas
 
 
 @timeIt
@@ -499,7 +493,10 @@ class Tree(QtGui.QTreeWidget):
 
 
         self.rootItem = QtGui.QTreeWidgetItem(self, [self.root])
-        self.rootItem.path = None
+        self.rootItem.path = root
+        self.rootItem.setExpanded(True)
+
+
 
         self.insertTopLevelItems(0, [self.rootItem])
 
@@ -540,6 +537,7 @@ class Tree(QtGui.QTreeWidget):
                     folderParentItem = itemsBank.get(intermFolder)
                     if not folderParentItem:
                         folderParentItem = QtGui.QTreeWidgetItem(parentItem, [folder])
+                        folderParentItem.setExpanded(True)
                         itemsBank[intermFolder] = folderParentItem
                         folderParentItem.path = intermFolder
 
@@ -578,7 +576,7 @@ class MainUI(QtGui.QWidget):
         self.dstDir = dstDir or srcDir
         # self.data   = ZZZ(self.srcDir, self.dstDir)
         # self.data   = ZZZ2(self.srcDir, self.dstDir)
-        self.data   = ZZZ3(self.srcDir, self.dstDir)
+        self.data   = buildFilesDatasFromFolder(self.srcDir, self.dstDir)
 
 
         if self.srcDir.endswith(os.path.sep):
@@ -605,16 +603,17 @@ class MainUI(QtGui.QWidget):
         self.tree_src.itemClicked.connect(self.changeImage)
 
     def changeImage(self, item, col):
-        print 'item, col =', item, col
-        print 'item.text =', item.text(col)
-        # sender = self.sender()
-        # print 'sender =', sender
-        print 'item.path =', item.path
 
         newImage = item.path
 
         if not os.path.isfile(newImage):
             return
+
+        print 'item, col =', item, col
+        print 'item.text =', item.text(col)
+        # sender = self.sender()
+        # print 'sender =', sender
+        print 'item.path =', item.path
 
         print 'newImage =', newImage
         metadata = self.data.get(newImage) or {}
@@ -666,7 +665,7 @@ if __name__ == '__main__':
 
     # if True:
     if False:
-        ZZZ3('/home/combi/tests/organize_images_root/')
+        buildFilesDatasFromFolder('/home/combi/tests/organize_images_root/')
 
         get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170618_111810.jpg', verbose=True)
         get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170615_210758.jpg', verbose=True)
