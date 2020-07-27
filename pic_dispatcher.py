@@ -116,7 +116,6 @@ def get_image_detailed_infos(imagePath, verbose=False):
             key = tag.split('.')[-1]
             if key in ('Orientation','ImageWidth','ImageLength'):
                 tagRawValue = int(tagRawValue)
-                print 'tagRawValue =', tagRawValue
             imageInfos[key] = tagRawValue  # on ne garde que le dernier id du tag pour etre plus concis
 
         if verbose:
@@ -169,7 +168,6 @@ def colors(col):
     cols['fail']   = '\033[91m'
     cols['end']    = '\033[0m'
     return cols.get(col, '')
-
 
 def ensure_dir(dirPath):
     # from http://stackoverflow.com/questions/273192/check-if-a-directory-exists-and-create-it-if-necessary
@@ -396,6 +394,53 @@ def move_images(filesToMoveData):
         shutil.move(src, dst)
 
 
+
+
+# -------------------------------------
+#               UI
+# -------------------------------------
+
+class Colors():
+    # white          = QtGui.QColor(240, 240, 240)
+    # black          = QtGui.QColor(0, 0, 0)
+    # dark_grey      = QtGui.QColor(30, 30, 30)
+    # light_grey     = QtGui.QColor(230, 230, 230)
+    red            = QtGui.QColor(122, 51 ,51)
+    # red_stronger   = QtGui.QColor(183, 38 ,30)
+    green          = QtGui.QColor(51 ,122,51)
+    # green_stronger = QtGui.QColor(25 ,204,25)
+    green_dim      = QtGui.QColor(102 ,153,102)
+    blue           = QtGui.QColor(56,102,153)
+    orange         = QtGui.QColor(255,178,0)
+    # salmon         = QtGui.QColor(151,92,122)
+    # yellow         = QtGui.QColor(204,255,76)
+    # cyan           = QtGui.QColor(17,174,171)
+# LES WIDGETS
+class LayoutWidget(QtGui.QWidget):
+    # TODO(combi): Exporter dans QtLib?
+    def __init__(self, mode='vertical', parent=None):
+        super(LayoutWidget, self).__init__(parent=parent)
+        if mode in ('vertical', 'horizontal'):
+            self.layout = QtGui.QBoxLayout(QtGui.QBoxLayout.LeftToRight, parent=self)  # On est oblige de donner une direction a la creation du layout
+            if mode == 'horizontal':
+                self.layout.setDirection(QtGui.QBoxLayout.LeftToRight)
+            elif mode =='vertical':
+                self.layout.setDirection(QtGui.QBoxLayout.TopToBottom)
+        elif mode == 'grid':
+            self.layout = QtGui.QGridLayout(self)  # On est oblige de donner une direction a la creation du layout
+        else:
+            raise('''[LayoutWidget]: Le mode %s n'est pas supporte''' %mode)
+
+        self.setLayout(self.layout)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
+    def addWidget(self, *args, **kwargs):
+        self.layout.addWidget(*args, **kwargs)
+
+    def setmargins(self, left=0, top=0, right=0, bottom=0):
+        self.layout.setContentsMargins(left, top, right, bottom)
+
+
 class PictureFrame(QtGui.QLabel):
     def __init__(self, img=None, orientation=None):
         super(PictureFrame, self).__init__()
@@ -488,7 +533,6 @@ class Tree(QtGui.QTreeWidget):
                     parentItem = created
 
 
-
 class TreeNew(QtGui.QTreeWidget):
     """docstring for Tree"""
     def __init__(self, data=None, mode='src', root=None):
@@ -500,7 +544,7 @@ class TreeNew(QtGui.QTreeWidget):
 
 
         self.rootItem = QtGui.QTreeWidgetItem(None, [self.root])
-        self.rootItem.imagePath = None
+        self.rootItem.path = None
 
         self.insertTopLevelItems(0, [self.rootItem])
 
@@ -517,10 +561,14 @@ class TreeNew(QtGui.QTreeWidget):
         itemsBank[self.root] = self.rootItem
 
         for f, metadatas in self.data.items():
-            if not metadatas:
-                continue
+            # if not metadatas:
+                # continue
 
             fileFolder, filename = f.rsplit(os.path.sep, 1)
+            # print
+            # print f
+            # print metadatas
+
             intermFoldersPath = fileFolder.replace(self.root, '')
 
             parentItem = itemsBank.get(fileFolder)
@@ -534,18 +582,36 @@ class TreeNew(QtGui.QTreeWidget):
                     folder = intermFolders.pop(0)
 
                     intermFolder = os.path.join(prev,folder)
-                    newParentItem = itemsBank.get(intermFolder)
-                    if not newParentItem:
-                        newParentItem = QtGui.QTreeWidgetItem(parentItem, [folder])
-                        newParentItem.imagePath = None
-                        itemsBank[intermFolder] = newParentItem
-                        parentItem = newParentItem
+                    folderParentItem = itemsBank.get(intermFolder)
+                    if not folderParentItem:
+                        folderParentItem = QtGui.QTreeWidgetItem(parentItem, [folder])
+                        itemsBank[intermFolder] = folderParentItem
+                        folderParentItem.path = intermFolder
+
+                        parentItem = folderParentItem
 
                     prev = intermFolder
 
-            imageItem = QtGui.QTreeWidgetItem(parentItem, [filename])
-            imageItem.imagePath = f
+            fileItem = QtGui.QTreeWidgetItem(parentItem, [filename])
+            fileItem.path = f
 
+            if metadatas:
+                tooltipText = '%s\n\n%s' %(filename, buildSmartPrintStr(metadatas))
+
+                imageDate = metadatas.get('DateTimeOriginal')
+                if imageDate:
+                    fileItem.setForeground(0, QtGui.QBrush(Colors.green))
+                    itemFont = fileItem.font(0)
+                    itemFont.setBold(True)
+                    fileItem.setFont(0, itemFont)
+                else:
+                    fileItem.setForeground(0, QtGui.QBrush(Colors.green_dim))
+            else:
+                print 'Info: %s is probably not an image' %f
+                tooltipText = '%s\n\nNot an image' %filename
+                fileItem.setForeground(0, QtGui.QBrush(Colors.red))
+
+            fileItem.setToolTip(0, tooltipText)
 
 
 
@@ -566,33 +632,40 @@ class MainUI(QtGui.QWidget):
         if self.dstDir.endswith(os.path.sep):
             self.dstDir = self.dstDir[:-1]
 
-        tree_src = TreeNew(data=self.data, mode='src', root=self.srcDir)
+        mainLayout = QtGui.QHBoxLayout(self)
+        self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
+        self.leftSplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
-        gl = QtGui.QHBoxLayout(self)
-
-
-        # self.picFrame = PictureFrame(img=self.data.keys()[-1], orientation=8)
+        self.tree_src = TreeNew(data=self.data, mode='src', root=self.srcDir)
         self.picFrame = PictureFrame()
+        self.leftSplitter.addWidget(self.tree_src)
+        self.leftSplitter.addWidget(self.picFrame)
 
-        splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
-        splitter.addWidget(tree_src)
-        # splitter.addWidget(tree_dst)
-        splitter.addWidget(self.picFrame)
 
-        gl.addWidget(splitter)
-        self.setLayout(gl)
+        self.splitter.addWidget(self.leftSplitter)
 
-        tree_src.itemClicked.connect(self.changeImage)
+        mainLayout.addWidget(self.splitter)
+        self.setLayout(mainLayout)
+
+        self.tree_src.itemClicked.connect(self.changeImage)
 
     def changeImage(self, item, col):
         print 'item, col =', item, col
         print 'item.text =', item.text(col)
         # sender = self.sender()
         # print 'sender =', sender
-        print 'item.imagePath =', item.imagePath
+        print 'item.path =', item.path
 
-        newImage = item.imagePath
-        orientation = self.data.get(newImage, {}).get('Orientation')
+        newImage = item.path
+
+        if not os.path.isfile(newImage):
+            return
+
+        print 'newImage =', newImage
+        metadata = self.data.get(newImage) or {}
+        if not metadata:
+            return
+        orientation = metadata.get('Orientation')
         print 'orientation =', orientation, type(orientation)
 
         self.picFrame.changePixmap(newImage, orientation=orientation)
