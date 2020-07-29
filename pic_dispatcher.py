@@ -665,11 +665,6 @@ class MainUI(QtGui.QWidget):
         # self.dstData  = convertFilesToMovedFiles(self.srcData, self.dstFolder)
         self.dstData  = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if k in self.moveMapping and v}
 
-
-
-
-
-
         # J'ai du mal a me decider sur la facon de gerer les datas.
         # Probablement que je devrais faire une fonction qui "relocate", et retourne 2 resultats:
         # - le mapping entre fichiers originaux et relocates.
@@ -678,31 +673,85 @@ class MainUI(QtGui.QWidget):
 
 
 
-
-
-
-        mainLayout = QtGui.QHBoxLayout(self)
+        mainLayout = QtGui.QVBoxLayout(self)
         self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
-        self.leftSplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
+
+        self.srcPanel = LayoutWidget(mode='vertical', parent=self.splitter)
+        self.dstPanel = LayoutWidget(mode='vertical', parent=self.splitter)
+
+
+        self.srcFolderLWidget = LayoutWidget(mode='horizontal', parent=self.splitter)
+        self.srcFolderLineEdit = QtGui.QLineEdit()
+        self.srcFolderLineEdit.setPlaceholderText('src folder')
+        self.srcFolderBtn = QtGui.QPushButton('...', parent=self.srcFolderLWidget)
+        self.srcFolderBtn.setContentsMargins(0,0,0,0)
+        self.srcFolderBtn.setMaximumWidth(30)
+        self.srcFolderBtn.srcOrDst = 'src'
+        self.srcFolderLWidget.addWidget(self.srcFolderLineEdit)
+        self.srcFolderLWidget.addWidget(self.srcFolderBtn)
+
+        self.dstFolderLWidget = LayoutWidget(mode='horizontal', parent=self.splitter)
+        self.dstFolderLineEdit = QtGui.QLineEdit()
+        self.dstFolderLineEdit.setPlaceholderText('dst folder')
+        self.dstFolderBtn = QtGui.QPushButton('...', parent=self.dstFolderLWidget)
+        self.dstFolderBtn.setContentsMargins(0,0,0,0)
+        self.dstFolderBtn.srcOrDst = 'dst'
+        self.dstFolderBtn.setMaximumWidth(30)
+        self.dstFolderLWidget.addWidget(self.dstFolderLineEdit)
+        self.dstFolderLWidget.addWidget(self.dstFolderBtn)
+
 
         self.srcTree = Tree(data=self.srcData, mode='src', root=self.srcFolder)
         self.dstTree = Tree(data=self.dstData, mode='dst', root=self.dstFolder)
 
-        self.picFrame = PictureFrame()
-        self.leftSplitter.addWidget(self.srcTree)
-        self.leftSplitter.addWidget(self.picFrame)
+        self.srcPanel.addWidget(self.srcFolderLWidget)
+        self.dstPanel.addWidget(self.dstFolderLWidget)
+
+        self.srcPicFrame = PictureFrame()
+        self.dstPicFrame = PictureFrame()
+        # self.srcPicFrame.setVisible(False)
+        # self.dstPicFrame.setVisible(False)
+
+        self.srcPanel.addWidget(self.srcFolderLWidget)
+        self.srcPanel.addWidget(self.srcTree)
+        self.srcPanel.addWidget(self.srcPicFrame)
+        self.dstPanel.addWidget(self.dstFolderLWidget)
+        self.dstPanel.addWidget(self.dstTree)
+        self.dstPanel.addWidget(self.dstPicFrame)
 
 
-        self.splitter.addWidget(self.leftSplitter)
-        self.splitter.addWidget(self.dstTree)
+        self.splitter.addWidget(self.srcPanel)
+        self.splitter.addWidget(self.dstPanel)
+
+
+        self.goBTN = QtGui.QPushButton('GO')
 
         mainLayout.addWidget(self.splitter)
+        mainLayout.addWidget(self.goBTN)
+
         self.setLayout(mainLayout)
 
 
         self.srcTree.itemClicked.connect(self.changeImage)
         # self.dstTree.itemClicked.connect(self.changeImage)
 
+        self.srcFolderBtn.clicked.connect(self.updateFolderPath)
+        self.dstFolderBtn.clicked.connect(self.updateFolderPath)
+
+        self.srcFolderLineEdit.clearFocus()
+        self.dstFolderLineEdit.clearFocus()
+
+        self.srcTree.setFocus()
+
+    def updateFolderPath(self):
+        print 'updateFolderPath'
+        sender = self.sender()
+        srcOrDst = sender.srcOrDst
+        print 'srcOrDst =', srcOrDst
+        if srcOrDst == 'src':
+            self.srcFolderLineEdit.setText('source folder updated')
+        elif srcOrDst == 'dst':
+            self.dstFolderLineEdit.setText('destination folder updated')
 
     def changeImage(self, item, col):
         imagesdatas = dict()
@@ -736,7 +785,7 @@ class MainUI(QtGui.QWidget):
         orientation = metadata.get('Orientation')
         print 'orientation =', orientation, type(orientation)
 
-        self.picFrame.changePixmap(newImage, orientation=orientation)
+        self.srcPicFrame.changePixmap(newImage, orientation=orientation)
 
 if __name__ == '__main__':
     # /home/combi/DEV/PYTHON/pyexiv2_tests.py
