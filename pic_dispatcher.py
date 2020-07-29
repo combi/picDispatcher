@@ -7,6 +7,8 @@ import pyexiv2
 import imghdr
 from PySide import QtGui, QtCore
 
+# modif locale
+
 '''
 IMPORTANT: Je suis tombe sur cette commande qui semble faire exactement ce que je veux:
 exiftool -d %Y-%m-%d "-directory<datetimeoriginal" *.jpg
@@ -117,6 +119,7 @@ def get_image_detailed_infos(imagePath, verbose=False):
             if key in ('Orientation','ImageWidth','ImageLength'):
                 tagRawValue = int(tagRawValue)
             imageInfos[key] = tagRawValue  # on ne garde que le dernier id du tag pour etre plus concis
+        imageInfos['filepath'] = imagePath
 
         if verbose:
             for t, tv in imageInfos.items():
@@ -205,17 +208,6 @@ def find_no_image_files(filesToCheck):
 
     return result
 
-
-def find_no_date_image_files(filesToCheck):
-    result = []
-
-    for f in filesToCheck:
-        src_imageInfos = get_image_detailed_infos(f)
-        src_datetime   = src_imageInfos['DateTimeOriginal']
-        if src_datetime is None:  # files that have no date time
-            result.append(f)
-
-    return result
 
 
 def filter_images_with_date(filesToCheck):
@@ -349,13 +341,88 @@ def ZZZ2(srcDirPath, dstDirPath=None, dirNamesToSkip=[]):
     return imagesToMove
 
 
-def buildFilesDatasFromFolder(folder, dirNamesToSkip=[]):
+def buildFilesDatasFromFolder(srcFolder, dirNamesToSkip=[]):
 
-    folder = os.path.normpath(folder)
-    filesToCheck, parsedDirs = get_dir_content(folder, dirNamesToSkip=dirNamesToSkip)
+    srcFolder_ = os.path.normpath(srcFolder)
+
+    filesToCheck, parsedDirs = get_dir_content(srcFolder_, dirNamesToSkip=dirNamesToSkip)
     filesAndMetadatas  = getFilesMetadatas(filesToCheck)
 
     return filesAndMetadatas
+
+
+def addMovedInfoInMetadatas(filesAndMetadatas, dstFolder):
+    if not dstFolder or not os.path.isdir(dstFolder):
+        # TODO(combi): Prevoir le cas ou on veut passer un repertoire a creer qui n'existerait pas encore?
+        return
+
+    result = dict()
+    for filePath, metadatas in filesAndMetadatas.items():
+        if not metadatas:
+            continue
+        fileName = os.path.basename(filePath)
+        datetime = metadatas.get('DateTimeOriginal')
+
+        if not datetime:
+            continue
+        date = datetime.replace(':', '-').split(' ')[0]
+        year = '_%s_' %date.split('-')[0]
+
+        movedFilePath = os.path.join(dstFolder, year, date, fileName)
+        metadatas['movedFilepath'] = movedFilePath
+
+    return result
+
+
+def convertFilesToMovedFilesOLD(filesAndMetadatas, dstDir):
+    if not dstDir or not os.path.isdir(dstDir):
+        # TODO(combi): Prevoir le cas ou on veut passer un repertoire a creer qui n'existerait pas encore?
+        return
+
+    result = dict()
+    for filePath, metadatas in filesAndMetadatas.items():
+        if not metadatas:
+            continue
+        fileName = os.path.basename(filePath)
+        datetime = metadatas.get('DateTimeOriginal')
+
+        if not datetime:
+            continue
+        date = datetime.replace(':', '-').split(' ')[0]
+        year = '_%s_' %date.split('-')[0]
+
+
+        newFilePath = os.path.join(dstDir, year, date, fileName)
+        result[newFilePath] = metadatas
+
+    return result
+
+
+def convertFilesToMovedFiles(filesAndMetadatas, dstDir):
+    if not dstDir:
+        # TODO(combi): Prevoir le cas ou on veut passer un repertoire a creer qui n'existerait pas encore?
+        return
+
+    result = dict()
+    for filePath, metadatas in filesAndMetadatas.items():
+        newFilePath = None
+
+        if metadatas:
+            fileName = os.path.basename(filePath)
+            datetime = metadatas.get('DateTimeOriginal')
+
+            if not datetime:
+                continue
+            date = datetime.replace(':', '-').split(' ')[0]
+            year = '_%s_' %date.split('-')[0]
+
+            newFilePath = os.path.join(dstDir, year, date, fileName)
+
+        result[filePath] = newFilePath
+
+    print 'convertFilesToMovedFiles:'
+    print buildSmartPrintStr(result)
+    return result
 
 
 @timeIt
@@ -468,7 +535,6 @@ class PictureFrame(QtGui.QLabel):
             print 'Nothing to do!'
             return
         self.orientation = orientation
-        print 'self.orientation =', self.orientation
         transform = QtGui.QTransform()
         if self.orientation == 6 :
             transform.rotate(90)
@@ -507,6 +573,7 @@ class Tree(QtGui.QTreeWidget):
         self.setColumnWidth(0, 400)
 
 
+        self.itemClicked.connect(self.onSelectItem)
 
     def populate(self):
         itemsBank = dict()
@@ -567,56 +634,103 @@ class Tree(QtGui.QTreeWidget):
             fileItem.setToolTip(0, tooltipText)
 
 
+    def onSelectItem(self, item, col):
+
+        newImage = item.path
+        print 'item.path =', item.path
+        if not os.path.isfile(newImage):
+            print 'image file not found'
+            return
+
+        print 'item, col =', item, col
+        print 'item.text =', item.text(col)
+
 
 
 class MainUI(QtGui.QWidget):
-    def __init__(self, parent=None, srcDir=None, dstDir=None):
+    def __init__(self, parent=None, srcFolder=None, dstFolder=None):
         super(MainUI, self).__init__(parent)
-        self.srcDir = srcDir
-        self.dstDir = dstDir or srcDir
-        # self.data   = ZZZ(self.srcDir, self.dstDir)
-        # self.data   = ZZZ2(self.srcDir, self.dstDir)
-        self.data   = buildFilesDatasFromFolder(self.srcDir, self.dstDir)
+        self.srcFolder = srcFolder
+        self.dstFolder = dstFolder or srcFolder
+
+        if self.srcFolder.endswith(os.path.sep):
+            self.srcFolder = self.srcFolder[:-1]
+
+        if self.dstFolder.endswith(os.path.sep):
+            self.dstFolder = self.dstFolder[:-1]
+
+        self.srcData   = buildFilesDatasFromFolder(self.srcFolder)
+        self.moveMapping = convertFilesToMovedFiles(self.srcData, self.dstFolder)
+        # self.dstData  = addMovedInfoInMetadatas(self.srcData, self.dstFolder)
+        # self.dstData  = convertFilesToMovedFiles(self.srcData, self.dstFolder)
+        self.dstData  = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if k in self.moveMapping and v}
 
 
-        if self.srcDir.endswith(os.path.sep):
-            self.srcDir = self.srcDir[:-1]
 
-        if self.dstDir.endswith(os.path.sep):
-            self.dstDir = self.dstDir[:-1]
+
+
+
+        # J'ai du mal a me decider sur la facon de gerer les datas.
+        # Probablement que je devrais faire une fonction qui "relocate", et retourne 2 resultats:
+        # - le mapping entre fichiers originaux et relocates.
+        # - Le dict des fichiers relocates.
+        # Mais meme pas sur que ca soit necessaire, selon ou se trouveront les datas (dans le Tree ou dans le mainUI)
+
+
+
+
+
 
         mainLayout = QtGui.QHBoxLayout(self)
         self.splitter = QtGui.QSplitter(QtCore.Qt.Horizontal)
         self.leftSplitter = QtGui.QSplitter(QtCore.Qt.Vertical)
 
-        self.tree_src = Tree(data=self.data, mode='src', root=self.srcDir)
+        self.srcTree = Tree(data=self.srcData, mode='src', root=self.srcFolder)
+        self.dstTree = Tree(data=self.dstData, mode='dst', root=self.dstFolder)
+
         self.picFrame = PictureFrame()
-        self.leftSplitter.addWidget(self.tree_src)
+        self.leftSplitter.addWidget(self.srcTree)
         self.leftSplitter.addWidget(self.picFrame)
 
 
         self.splitter.addWidget(self.leftSplitter)
+        self.splitter.addWidget(self.dstTree)
 
         mainLayout.addWidget(self.splitter)
         self.setLayout(mainLayout)
 
-        self.tree_src.itemClicked.connect(self.changeImage)
+
+        self.srcTree.itemClicked.connect(self.changeImage)
+        # self.dstTree.itemClicked.connect(self.changeImage)
+
 
     def changeImage(self, item, col):
+        imagesdatas = dict()
+        sender = self.sender()
+        if sender == self.srcTree:
+            print 'source tree!'
+            imagesdatas = self.srcData
+        # elif sender == self.dstTree:
+        #     imagesdatas = self.dstData
+        #     print 'destination tree!'
 
         newImage = item.path
-
+        print 'item.path =', item.path
         if not os.path.isfile(newImage):
+            print 'image file not found'
             return
 
         print 'item, col =', item, col
         print 'item.text =', item.text(col)
-        # sender = self.sender()
-        # print 'sender =', sender
+
+
+
+
+        print 'sender =', sender
         print 'item.path =', item.path
 
         print 'newImage =', newImage
-        metadata = self.data.get(newImage) or {}
+        metadata = imagesdatas.get(newImage) or {}
         if not metadata:
             return
         orientation = metadata.get('Orientation')
@@ -665,13 +779,15 @@ if __name__ == '__main__':
 
     # if True:
     if False:
-        buildFilesDatasFromFolder('/home/combi/tests/organize_images_root/')
-
-        get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170618_111810.jpg', verbose=True)
-        get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170615_210758.jpg', verbose=True)
+        filesAndMetadatas = buildFilesDatasFromFolder('/home/combi/tests/organize_images_root/sourceFolder')
+        print 'filesAndMetadatas =', buildSmartPrintStr(filesAndMetadatas)
+        yyy  = addMovedInfoInMetadatas(filesAndMetadatas, '/home/combi/tests/organize_images_root/destFolder')
+        print 'yyy =', buildSmartPrintStr(yyy)
+        # get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170618_111810.jpg', verbose=True)
+        # get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170615_210758.jpg', verbose=True)
 
     else:
         app = QtGui.QApplication(sys.argv)
-        X = MainUI(srcDir='/home/combi/tests/organize_images_root/')
+        X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder', dstFolder='/home/combi/tests/organize_images_root/destFolder')
         X.show()
         sys.exit(app.exec_())
