@@ -342,9 +342,9 @@ def ZZZ2(srcDirPath, dstDirPath=None, dirNamesToSkip=[]):
 
 
 def buildFilesDatasFromFolder(srcFolder, dirNamesToSkip=[]):
-
+    if not srcFolder:
+        return
     srcFolder_ = os.path.normpath(srcFolder)
-
     filesToCheck, parsedDirs = get_dir_content(srcFolder_, dirNamesToSkip=dirNamesToSkip)
     filesAndMetadatas  = getFilesMetadatas(filesToCheck)
 
@@ -420,8 +420,8 @@ def convertFilesToMovedFiles(filesAndMetadatas, dstDir):
 
         result[filePath] = newFilePath
 
-    print 'convertFilesToMovedFiles:'
-    print buildSmartPrintStr(result)
+    # print 'convertFilesToMovedFiles:'
+    # print buildSmartPrintStr(result)
     return result
 
 
@@ -460,6 +460,8 @@ def move_images(filesToMoveData):
 # -------------------------------------
 #               UI
 # -------------------------------------
+
+# def removeLastSlashFromFolder
 
 class Colors():
     # white          = QtGui.QColor(240, 240, 240)
@@ -557,15 +559,6 @@ class Tree(QtGui.QTreeWidget):
         self.data = data
         self.root = root
 
-
-        self.rootItem = QtGui.QTreeWidgetItem(self, [self.root])
-        self.rootItem.path = root
-        self.rootItem.setExpanded(True)
-
-
-
-        self.insertTopLevelItems(0, [self.rootItem])
-
         self.populate()
         self.setUniformRowHeights(True)
         self.setSortingEnabled(True)
@@ -575,24 +568,30 @@ class Tree(QtGui.QTreeWidget):
 
         self.itemClicked.connect(self.onSelectItem)
 
+    def updateRootAndDatas(self, root, data):
+        self.root = root
+        self.data = data or {}
+
     def populate(self):
+        self.clear()
+
+        rootItem = QtGui.QTreeWidgetItem(self, [self.root])
+        rootItem.path = self.root
+        rootItem.setExpanded(True)
+
+        self.insertTopLevelItems(0, [rootItem])
+
         itemsBank = dict()
-        itemsBank[self.root] = self.rootItem
+        itemsBank[self.root] = rootItem
 
         for f, metadatas in self.data.items():
-            # if not metadatas:
-                # continue
-
             fileFolder, filename = f.rsplit(os.path.sep, 1)
-            # print
-            # print f
-            # print metadatas
-
-            intermFoldersPath = fileFolder.replace(self.root, '')
 
             parentItem = itemsBank.get(fileFolder)
             if not parentItem:
-                parentItem = self.rootItem
+                intermFoldersPath = fileFolder.replace(self.root, '')
+
+                parentItem = rootItem
                 intermFolders = intermFoldersPath.split(os.path.sep)[1:]
 
                 prev = self.root
@@ -650,27 +649,10 @@ class Tree(QtGui.QTreeWidget):
 class MainUI(QtGui.QWidget):
     def __init__(self, parent=None, srcFolder=None, dstFolder=None):
         super(MainUI, self).__init__(parent)
-        self.srcFolder = srcFolder
-        self.dstFolder = dstFolder or srcFolder
-
-        if self.srcFolder.endswith(os.path.sep):
-            self.srcFolder = self.srcFolder[:-1]
-
-        if self.dstFolder.endswith(os.path.sep):
-            self.dstFolder = self.dstFolder[:-1]
-
-        self.srcData   = buildFilesDatasFromFolder(self.srcFolder)
-        self.moveMapping = convertFilesToMovedFiles(self.srcData, self.dstFolder)
-        # self.dstData  = addMovedInfoInMetadatas(self.srcData, self.dstFolder)
-        # self.dstData  = convertFilesToMovedFiles(self.srcData, self.dstFolder)
-        self.dstData  = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if k in self.moveMapping and v}
-
-        # J'ai du mal a me decider sur la facon de gerer les datas.
-        # Probablement que je devrais faire une fonction qui "relocate", et retourne 2 resultats:
-        # - le mapping entre fichiers originaux et relocates.
-        # - Le dict des fichiers relocates.
-        # Mais meme pas sur que ca soit necessaire, selon ou se trouveront les datas (dans le Tree ou dans le mainUI)
-
+        self.srcFolder = srcFolder or ''
+        self.dstFolder = dstFolder or self.srcFolder
+        self.srcData   = {}
+        self.dstData   = {}
 
 
         mainLayout = QtGui.QVBoxLayout(self)
@@ -686,6 +668,7 @@ class MainUI(QtGui.QWidget):
         self.srcFolderBtn = QtGui.QPushButton('...', parent=self.srcFolderLWidget)
         self.srcFolderBtn.setContentsMargins(0,0,0,0)
         self.srcFolderBtn.setMaximumWidth(30)
+        self.srcFolderLineEdit.srcOrDst = 'src'
         self.srcFolderBtn.srcOrDst = 'src'
         self.srcFolderLWidget.addWidget(self.srcFolderLineEdit)
         self.srcFolderLWidget.addWidget(self.srcFolderBtn)
@@ -695,6 +678,7 @@ class MainUI(QtGui.QWidget):
         self.dstFolderLineEdit.setPlaceholderText('dst folder')
         self.dstFolderBtn = QtGui.QPushButton('...', parent=self.dstFolderLWidget)
         self.dstFolderBtn.setContentsMargins(0,0,0,0)
+        self.dstFolderLineEdit.srcOrDst = 'dst'
         self.dstFolderBtn.srcOrDst = 'dst'
         self.dstFolderBtn.setMaximumWidth(30)
         self.dstFolderLWidget.addWidget(self.dstFolderLineEdit)
@@ -732,26 +716,67 @@ class MainUI(QtGui.QWidget):
         self.setLayout(mainLayout)
 
 
+
+        self.srcFolderLineEdit.clearFocus()
+        self.dstFolderLineEdit.clearFocus()
+
+        self.setFocus()
+
         self.srcTree.itemClicked.connect(self.changeImage)
         # self.dstTree.itemClicked.connect(self.changeImage)
 
         self.srcFolderBtn.clicked.connect(self.updateFolderPath)
         self.dstFolderBtn.clicked.connect(self.updateFolderPath)
 
-        self.srcFolderLineEdit.clearFocus()
-        self.dstFolderLineEdit.clearFocus()
+        self.srcFolderLineEdit.editingFinished.connect(self.onFolderChanged)
+        self.dstFolderLineEdit.editingFinished.connect(self.onFolderChanged)
 
-        self.srcTree.setFocus()
+        self.updateSrcAndDstDatas()
+        self.updateSrcAndDstTrees()
+
+
+    def updateSrcAndDstDatas(self):
+        self.srcData = buildFilesDatasFromFolder(self.srcFolder) or {}
+        moveMapping  = convertFilesToMovedFiles(self.srcData, self.dstFolder) or {}
+        self.dstData = {moveMapping[k]:v for (k,v) in self.srcData.items() if k in moveMapping and v}
+
+    def updateSrcAndDstTrees(self):
+        self.srcTree.root = self.srcFolder
+        self.srcTree.data = self.srcData
+        self.srcTree.populate()
+
+        self.dstTree.root = self.dstFolder or self.srcFolder
+        self.dstTree.data = self.dstData
+        self.dstTree.populate()
+
+
+
 
     def updateFolderPath(self):
-        print 'updateFolderPath'
+        print '[updateFolderPath]'
         sender = self.sender()
         srcOrDst = sender.srcOrDst
         print 'srcOrDst =', srcOrDst
         if srcOrDst == 'src':
-            self.srcFolderLineEdit.setText('source folder updated')
+            self.srcFolderLineEdit.setText('/home/combi/tests/organize_images_root/sourceFolder')
         elif srcOrDst == 'dst':
             self.dstFolderLineEdit.setText('destination folder updated')
+
+        self.onFolderChanged()
+
+
+    def onFolderChanged(self):
+        print '[onFolderChanged]'
+        sender = self.sender()
+        print 'sender =', sender
+        srcOrDst = sender.srcOrDst
+        if srcOrDst == 'src':
+            self.srcFolder = self.srcFolderLineEdit.text()
+        elif srcOrDst == 'dst':
+            self.dstFolder = self.dstFolderLineEdit.text()
+
+        self.updateSrcAndDstDatas()
+        self.updateSrcAndDstTrees()
 
     def changeImage(self, item, col):
         imagesdatas = dict()
@@ -837,6 +862,8 @@ if __name__ == '__main__':
 
     else:
         app = QtGui.QApplication(sys.argv)
+        # X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder/', dstFolder='/home/combi/tests/organize_images_root/destFolder')
         X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder', dstFolder='/home/combi/tests/organize_images_root/destFolder')
+        # X = MainUI()
         X.show()
         sys.exit(app.exec_())
