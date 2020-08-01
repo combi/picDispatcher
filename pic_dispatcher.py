@@ -346,6 +346,7 @@ def buildFilesDatasFromFolder(srcFolder, dirNamesToSkip=[]):
         return
     srcFolder_ = os.path.normpath(srcFolder)
     filesToCheck, parsedDirs = get_dir_content(srcFolder_, dirNamesToSkip=dirNamesToSkip)
+    print buildSmartPrintStr(filesToCheck, header='filesToCheck', offset=0, sort=False, associatedTypes=False)
     filesAndMetadatas  = getFilesMetadatas(filesToCheck)
 
     return filesAndMetadatas
@@ -411,12 +412,11 @@ def convertFilesToMovedFiles(filesAndMetadatas, dstDir):
             fileName = os.path.basename(filePath)
             datetime = metadatas.get('DateTimeOriginal')
 
-            if not datetime:
-                continue
-            date = datetime.replace(':', '-').split(' ')[0]
-            year = '_%s_' %date.split('-')[0]
+            if datetime:
+                date = datetime.replace(':', '-').split(' ')[0]
+                year = '_%s_' %date.split('-')[0]
 
-            newFilePath = os.path.join(dstDir, year, date, fileName)
+                newFilePath = os.path.join(dstDir, year, date, fileName)
 
         result[filePath] = newFilePath
 
@@ -448,11 +448,15 @@ def build_files_data(srcDirPath):
 
 
 def move_images(filesToMoveData):
+    print 'MOVE IMAGES START'
     # filesToMoveData est un dict
     for src, dst in filesToMoveData.items():
+        if not src or not dst:
+            continue
         dstDir = os.path.dirname(dst)
         ensure_dir(dstDir)
         shutil.move(src, dst)
+    print 'MOVE IMAGES END'
 
 
 
@@ -632,7 +636,6 @@ class Tree(QtGui.QTreeWidget):
 
             fileItem.setToolTip(0, tooltipText)
 
-
     def onSelectItem(self, item, col):
 
         newImage = item.path
@@ -728,8 +731,9 @@ class MainUI(QtGui.QWidget):
         self.srcFolderBtn.clicked.connect(self.updateFolderPath)
         self.dstFolderBtn.clicked.connect(self.updateFolderPath)
 
-        self.srcFolderLineEdit.editingFinished.connect(self.onFolderChanged)
-        self.dstFolderLineEdit.editingFinished.connect(self.onFolderChanged)
+        self.srcFolderLineEdit.returnPressed.connect(self.onFolderChanged)
+        self.dstFolderLineEdit.returnPressed.connect(self.onFolderChanged)
+        self.goBTN.clicked.connect(self.onGo)
 
         self.updateSrcAndDstDatas()
         self.updateSrcAndDstTrees()
@@ -737,8 +741,13 @@ class MainUI(QtGui.QWidget):
 
     def updateSrcAndDstDatas(self):
         self.srcData = buildFilesDatasFromFolder(self.srcFolder) or {}
-        moveMapping  = convertFilesToMovedFiles(self.srcData, self.dstFolder) or {}
-        self.dstData = {moveMapping[k]:v for (k,v) in self.srcData.items() if k in moveMapping and v}
+        self.moveMapping  = convertFilesToMovedFiles(self.srcData, self.dstFolder) or {}
+        # self.dstData = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if k in self.moveMapping and v}
+        self.dstData = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if self.moveMapping.get(k)}
+
+        print buildSmartPrintStr(self.srcData, header='self.srcData', offset=0, sort=False, associatedTypes=False)
+        print buildSmartPrintStr(self.moveMapping, header='moveMapping', offset=0, sort=False, associatedTypes=False)
+        print buildSmartPrintStr(self.dstData, header='self.dstData', offset=0, sort=False, associatedTypes=False)
 
     def updateSrcAndDstTrees(self):
         self.srcTree.root = self.srcFolder
@@ -748,9 +757,6 @@ class MainUI(QtGui.QWidget):
         self.dstTree.root = self.dstFolder or self.srcFolder
         self.dstTree.data = self.dstData
         self.dstTree.populate()
-
-
-
 
     def updateFolderPath(self):
         print '[updateFolderPath]'
@@ -763,7 +769,6 @@ class MainUI(QtGui.QWidget):
             self.dstFolderLineEdit.setText('destination folder updated')
 
         self.onFolderChanged()
-
 
     def onFolderChanged(self):
         print '[onFolderChanged]'
@@ -811,6 +816,11 @@ class MainUI(QtGui.QWidget):
         print 'orientation =', orientation, type(orientation)
 
         self.srcPicFrame.changePixmap(newImage, orientation=orientation)
+
+    def onGo(self):
+        print '[ON GO START]'
+        move_images(self.moveMapping)
+        print '[ON GO END]'
 
 if __name__ == '__main__':
     # /home/combi/DEV/PYTHON/pyexiv2_tests.py
