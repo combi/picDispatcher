@@ -10,9 +10,15 @@ from PySide import QtGui, QtCore
 # modif locale
 
 '''
-IMPORTANT: Je suis tombe sur cette commande qui semble faire exactement ce que je veux:
-exiftool -d %Y-%m-%d "-directory<datetimeoriginal" *.jpg
-https://www.185vfx.com/2018/11/organize-images-by-date/
+    IMPORTANT: Je suis tombe sur cette commande qui semble faire exactement ce que je veux:
+    exiftool -d %Y-%m-%d "-directory<datetimeoriginal" *.jpg
+    https://www.185vfx.com/2018/11/organize-images-by-date/
+
+
+    TODO - Barre de progression
+    TODO - interface
+    TODO - respecter dans l'ordre alphabetique
+    TODO - indiquer les nombres de photos par categorie
 '''
 
 
@@ -21,7 +27,7 @@ def timeIt(func):
         startTime = time.time()
         result = func(*args, **kwargs)
         elapsed = time.time()-startTime
-        print '[%s time] (%ss)' %(func.__name__, elapsed)
+        print('[%s time] (%ss)' %(func.__name__, elapsed))
         return result
 
     return func_decorated
@@ -78,7 +84,7 @@ def buildPrintFromListTupleSet(iterable, offset=0, sort=False, associatedTypes=F
 def buildSmartPrintStr(toPrint, header=None, offset=0, sort=False, associatedTypes=False):
     toPrintType = type(toPrint)
     if header:
-        print '%s:' %header
+        print('%s:' %header)
     if isinstance(toPrint, dict):
         return buildPrintFromDicts([toPrint], offset=offset, sort=sort, associatedTypes=associatedTypes)
     elif toPrintType in (tuple, list, set):
@@ -92,8 +98,8 @@ def touch(fname, times=None):
 
 def get_image_detailed_infos(imagePath, verbose=False):
     if verbose:
-        print
-        print 'imagePath =', imagePath
+        print('')
+        print('imagePath = %s' %imagePath)
 
 
     imageInfos  = {}
@@ -123,7 +129,7 @@ def get_image_detailed_infos(imagePath, verbose=False):
 
         if verbose:
             for t, tv in imageInfos.items():
-                print t, ':', tv
+                print('%s : %s' %(t, tv))
     except:
         pass
 
@@ -159,7 +165,7 @@ def get_image_orientation(image):
 
 def print_dir_times(dirPath):
     for f in get_dir_content(dirPath):
-        print '%s : %s' % (f, get_image_date_time(f))
+        print('%s : %s' % (f, get_image_date_time(f)))
 
 
 def colors(col):
@@ -269,7 +275,7 @@ def find_images_to_move(imagesInfosDict, dstDir):
         src_date       = src_datetime.replace(':', '-').split(' ')[0]
         year           = '_%s_' %src_date.split('-')[0]
 
-        # print 'src_date=', src_date
+        print('src_date = %s' %src_date)
         dst_image      = os.path.join(dstDir, year, src_date, imageName)
         dst_imageInfos = get_image_detailed_infos(dst_image)
         if os.path.isfile(dst_image):
@@ -311,7 +317,7 @@ def ZZZ(srcDirPath, dstDirPath=None, dirNamesToSkip=[]):
     filesNoImage     = set(find_no_image_files(filesToCheck))
     images           = filesToCheck - filesNoImage
     imagesWithDate   = filter_images_with_date(images)
-    print 'imagesWithDate=', imagesWithDate
+    print('imagesWithDate = %s' %imagesWithDate)
     return  # DEBUGONLY
     imagesToMove     = find_images_to_move(imagesWithDate, dstDirPath)
     # imagesWithNoDate = images - set(imagesWithDate.keys())
@@ -319,7 +325,7 @@ def ZZZ(srcDirPath, dstDirPath=None, dirNamesToSkip=[]):
     # print 'imagesWithDate=', imagesWithDate
     # for k,v in imagesWithDate.iteritems():
     for k,v in imagesToMove.iteritems():
-        print k,v
+        print(k,v)
 
     return imagesToMove
 
@@ -346,7 +352,7 @@ def buildFilesDatasFromFolder(srcFolder, dirNamesToSkip=[]):
         return
     srcFolder_ = os.path.normpath(srcFolder)
     filesToCheck, parsedDirs = get_dir_content(srcFolder_, dirNamesToSkip=dirNamesToSkip)
-    print buildSmartPrintStr(filesToCheck, header='filesToCheck', offset=0, sort=False, associatedTypes=False)
+    print(buildSmartPrintStr(filesToCheck, header='filesToCheck', offset=0, sort=False, associatedTypes=False))
     filesAndMetadatas  = getFilesMetadatas(filesToCheck)
 
     return filesAndMetadatas
@@ -448,7 +454,7 @@ def build_files_data(srcDirPath):
 
 
 def move_images(filesToMoveData):
-    print 'MOVE IMAGES START'
+    print('MOVE IMAGES START')
     # filesToMoveData est un dict
     for src, dst in filesToMoveData.items():
         if not src or not dst:
@@ -456,7 +462,7 @@ def move_images(filesToMoveData):
         dstDir = os.path.dirname(dst)
         ensure_dir(dstDir)
         shutil.move(src, dst)
-    print 'MOVE IMAGES END'
+    print('MOVE IMAGES END')
 
 
 
@@ -538,7 +544,7 @@ class PictureFrame(QtGui.QLabel):
     def changePixmap(self, img, orientation=None):
         # https://sirv.com/help/articles/rotate-photos-to-be-upright/
         if self.img == img:
-            print 'Nothing to do!'
+            print('Nothing to do!')
             return
         self.orientation = orientation
         transform = QtGui.QTransform()
@@ -630,7 +636,7 @@ class Tree(QtGui.QTreeWidget):
                 else:
                     fileItem.setForeground(0, QtGui.QBrush(Colors.green_dim))
             else:
-                print 'Info: %s is probably not an image' %f
+                print('Info: %s is probably not an image' %f)
                 tooltipText = '%s\n\nNot an image' %filename
                 fileItem.setForeground(0, QtGui.QBrush(Colors.red))
 
@@ -639,13 +645,13 @@ class Tree(QtGui.QTreeWidget):
     def onSelectItem(self, item, col):
 
         newImage = item.path
-        print 'item.path =', item.path
+        print('item.path = %s' %item.path)
         if not os.path.isfile(newImage):
-            print 'image file not found'
+            print('image file not found')
             return
 
-        print 'item, col =', item, col
-        print 'item.text =', item.text(col)
+        print('item, col = %s' %item, col)
+        print('item.text = %s' %item.text(col))
 
 
 
@@ -666,7 +672,7 @@ class MainUI(QtGui.QWidget):
 
 
         self.srcFolderLWidget = LayoutWidget(mode='horizontal', parent=self.splitter)
-        self.srcFolderLineEdit = QtGui.QLineEdit()
+        self.srcFolderLineEdit = QtGui.QLineEdit(self.srcFolder)
         self.srcFolderLineEdit.setPlaceholderText('src folder')
         self.srcFolderBtn = QtGui.QPushButton('...', parent=self.srcFolderLWidget)
         self.srcFolderBtn.setContentsMargins(0,0,0,0)
@@ -677,7 +683,7 @@ class MainUI(QtGui.QWidget):
         self.srcFolderLWidget.addWidget(self.srcFolderBtn)
 
         self.dstFolderLWidget = LayoutWidget(mode='horizontal', parent=self.splitter)
-        self.dstFolderLineEdit = QtGui.QLineEdit()
+        self.dstFolderLineEdit = QtGui.QLineEdit(self.dstFolder)
         self.dstFolderLineEdit.setPlaceholderText('dst folder')
         self.dstFolderBtn = QtGui.QPushButton('...', parent=self.dstFolderLWidget)
         self.dstFolderBtn.setContentsMargins(0,0,0,0)
@@ -725,6 +731,10 @@ class MainUI(QtGui.QWidget):
 
         self.setFocus()
 
+        self.updateSrcAndDstDatas()
+        self.updateSrcAndDstTrees()
+
+
         self.srcTree.itemClicked.connect(self.changeImage)
         # self.dstTree.itemClicked.connect(self.changeImage)
 
@@ -735,9 +745,6 @@ class MainUI(QtGui.QWidget):
         self.dstFolderLineEdit.returnPressed.connect(self.onFolderChanged)
         self.goBTN.clicked.connect(self.onGo)
 
-        self.updateSrcAndDstDatas()
-        self.updateSrcAndDstTrees()
-
 
     def updateSrcAndDstDatas(self):
         self.srcData = buildFilesDatasFromFolder(self.srcFolder) or {}
@@ -745,9 +752,9 @@ class MainUI(QtGui.QWidget):
         # self.dstData = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if k in self.moveMapping and v}
         self.dstData = {self.moveMapping[k]:v for (k,v) in self.srcData.items() if self.moveMapping.get(k)}
 
-        print buildSmartPrintStr(self.srcData, header='self.srcData', offset=0, sort=False, associatedTypes=False)
-        print buildSmartPrintStr(self.moveMapping, header='moveMapping', offset=0, sort=False, associatedTypes=False)
-        print buildSmartPrintStr(self.dstData, header='self.dstData', offset=0, sort=False, associatedTypes=False)
+        print(buildSmartPrintStr(self.srcData, header='self.srcData', offset=0, sort=False, associatedTypes=False))
+        print(buildSmartPrintStr(self.moveMapping, header='moveMapping', offset=0, sort=False, associatedTypes=False))
+        print(buildSmartPrintStr(self.dstData, header='self.dstData', offset=0, sort=False, associatedTypes=False))
 
     def updateSrcAndDstTrees(self):
         self.srcTree.root = self.srcFolder
@@ -759,10 +766,10 @@ class MainUI(QtGui.QWidget):
         self.dstTree.populate()
 
     def updateFolderPath(self):
-        print '[updateFolderPath]'
+        print('[updateFolderPath]')
         sender = self.sender()
         srcOrDst = sender.srcOrDst
-        print 'srcOrDst =', srcOrDst
+        print('srcOrDst = %s' %srcOrDst)
         if srcOrDst == 'src':
             self.srcFolderLineEdit.setText('/home/combi/tests/organize_images_root/sourceFolder')
         elif srcOrDst == 'dst':
@@ -771,9 +778,9 @@ class MainUI(QtGui.QWidget):
         self.onFolderChanged()
 
     def onFolderChanged(self):
-        print '[onFolderChanged]'
+        print('[onFolderChanged]')
         sender = self.sender()
-        print 'sender =', sender
+        print('sender = %s'  %sender)
         srcOrDst = sender.srcOrDst
         if srcOrDst == 'src':
             self.srcFolder = self.srcFolderLineEdit.text()
@@ -787,42 +794,62 @@ class MainUI(QtGui.QWidget):
         imagesdatas = dict()
         sender = self.sender()
         if sender == self.srcTree:
-            print 'source tree!'
+            print('source tree!')
             imagesdatas = self.srcData
         # elif sender == self.dstTree:
         #     imagesdatas = self.dstData
         #     print 'destination tree!'
 
         newImage = item.path
-        print 'item.path =', item.path
+        print('item.path =' %item.path)
         if not os.path.isfile(newImage):
-            print 'image file not found'
+            print('image file not found')
             return
 
-        print 'item, col =', item, col
-        print 'item.text =', item.text(col)
+        print('item, col = %s' %item, col)
+        print('item.text = %s' %item.text(col))
 
 
 
 
-        print 'sender =', sender
-        print 'item.path =', item.path
+        print('sender = %s' %sender)
+        print('item.path = %s' %item.path)
 
-        print 'newImage =', newImage
+        print('newImage = %s' %newImage)
         metadata = imagesdatas.get(newImage) or {}
         if not metadata:
             return
         orientation = metadata.get('Orientation')
-        print 'orientation =', orientation, type(orientation)
+        print('orientation = %s (%s)' %(orientation, type(orientation)))
 
         self.srcPicFrame.changePixmap(newImage, orientation=orientation)
 
     def onGo(self):
-        print '[ON GO START]'
+        print('[ON GO START]')
         move_images(self.moveMapping)
-        print '[ON GO END]'
+        print('[ON GO END]')
 
 if __name__ == '__main__':
+
+
+    # if True:
+    if False:
+        filesAndMetadatas = buildFilesDatasFromFolder('/home/combi/tests/organize_images_root/sourceFolder')
+        print('filesAndMetadatas = %s' %buildSmartPrintStr(filesAndMetadatas))
+        yyy  = addMovedInfoInMetadatas(filesAndMetadatas, '/home/combi/tests/organize_images_root/destFolder')
+        print('yyy = %s' %buildSmartPrintStr(yyy))
+        # get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170618_111810.jpg', verbose=True)
+        # get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170615_210758.jpg', verbose=True)
+
+    else:
+        app = QtGui.QApplication(sys.argv)
+        # X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder/', dstFolder='/home/combi/tests/organize_images_root/destFolder')
+        X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder', dstFolder='/home/combi/tests/organize_images_root/destFolder')
+        # X = MainUI()
+        X.show()
+        sys.exit(app.exec_())
+
+
     # /home/combi/DEV/PYTHON/pyexiv2_tests.py
     # Pour recuperer la date d'une image passee en argument
     # f = '/home/combi/tests/justTesting.py'
@@ -835,12 +862,6 @@ if __name__ == '__main__':
     #     print 'key=', key
     #     print '\n'.join(group)
 
-    '''
-    todo - Barre de progression
-    todo - interface
-    todo - respecter dans l'ordre alphabetique
-    todo - indiquer les nombres de photos par categorie
-    '''
 
     # import argparse
 
@@ -860,20 +881,3 @@ if __name__ == '__main__':
     # testMode        : %s
     # Continue? (y/n) : ''' %(_src, _dst, _testMode)
     # confirm = raw_input(confirmMessage)
-
-    # if True:
-    if False:
-        filesAndMetadatas = buildFilesDatasFromFolder('/home/combi/tests/organize_images_root/sourceFolder')
-        print 'filesAndMetadatas =', buildSmartPrintStr(filesAndMetadatas)
-        yyy  = addMovedInfoInMetadatas(filesAndMetadatas, '/home/combi/tests/organize_images_root/destFolder')
-        print 'yyy =', buildSmartPrintStr(yyy)
-        # get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170618_111810.jpg', verbose=True)
-        # get_image_detailed_infos('/home/combi/tests/organize_images_root/subfolder1/IMG_20170615_210758.jpg', verbose=True)
-
-    else:
-        app = QtGui.QApplication(sys.argv)
-        # X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder/', dstFolder='/home/combi/tests/organize_images_root/destFolder')
-        X = MainUI(srcFolder='/home/combi/tests/organize_images_root/sourceFolder', dstFolder='/home/combi/tests/organize_images_root/destFolder')
-        # X = MainUI()
-        X.show()
-        sys.exit(app.exec_())
